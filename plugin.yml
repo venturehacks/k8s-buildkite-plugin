@@ -1,0 +1,14 @@
+name: k8s
+description: Runs a build step as a Kubernetes Pod
+author: https://github.com/venturehacks
+requirements:
+- jq
+- kubectl
+- ruby
+configuration:
+  properties:
+    image:
+      type: string
+  required:
+  - image
+  additionalProperties: false

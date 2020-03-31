@@ -1,0 +1,44 @@
+#!/bin/bash
+
+set -euo pipefail
+
+main() {
+  local script_dir
+  script_dir="$(cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)"
+  local root_dir
+  root_dir="$(dirname "$script_dir")"
+
+  local extra_env
+  extra_env="$(env -i $(cat "$BUILDKITE_ENV_FILE" | grep -v "BUILDKITE_" | xargs) $(which jq) -n -c env)"
+
+  local pod
+  pod="$(jq -n -f "$root_dir/lib/pod.jq" --argjson extra_env $extra_env)"
+
+  local pod_name
+  pod_name="$(echo -n $pod | jq -r .metadata.name)"
+
+  echo "--- :kubernetes: Starting pod"
+  echo -n "$pod" | kubectl create -f -
+  kubectl wait --for=condition=Ready --timeout="$(jq -r -n 'env.BUILDKITE_TIMEOUT | tonumber * 60')s" pod "$pod_name" || (exit 124)
+  kubectl cp -c run "$(which buildkite-agent)" "$pod_name:/usr/local/bin/" || true
+
+  echo "+++ :kubernetes: Running command: $BUILDKITE_COMMAND"
+  kubectl exec -c run "$pod_name" -- $BUILDKITE_COMMAND
+}
+
+cleanup() {
+  local pod_name
+  pod_name="$BUILDKITE_PIPELINE_SLUG-$BUILDKITE_JOB_ID"
+
+  if [[ -n "$BUILDKITE_ARTIFACT_PATHS" ]]; then
+    echo "--- :kubernetes: Copying artifacts..."
+    (kubectl exec "$pod_name" -c run -- /bin/bash -c 'tar czf - $(shopt -s nullglob; IFS=";" list=($BUILDKITE_ARTIFACT_PATHS); echo -n "${list[@]}") || true' | tar xzf - -C $(pwd) || true) &> /dev/null
+  fi
+
+  (kubectl patch pod --patch '{"spec":{"activeDeadlineSeconds":1}}' "$pod_name" &> /dev/null || true)
+  (kubectl delete pod "$pod_name" --now=true --wait=false &> /dev/null || true)
+}
+
+trap cleanup EXIT
+
+main "$@"

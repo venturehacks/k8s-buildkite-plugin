@@ -26,13 +26,26 @@ main() {
   kubectl exec -c run "$pod_name" -- $BUILDKITE_COMMAND
 }
 
+copy_artifacts() {
+  local pod_name = $1
+  local container_name = $2
+  local artifact_paths = $3
+
+  (kubectl exec "$pod_name" -c $container_name -- /bin/bash -c 'tar czf - $(shopt -s nullglob; IFS=";" list=($artifact_paths); echo -n "${list[@]}") || true' | tar xzf - -C $(pwd) || true) &> /dev/null
+}
+
 cleanup() {
   local pod_name
   pod_name="$BUILDKITE_PIPELINE_SLUG-$BUILDKITE_JOB_ID"
 
   if [[ -n "$BUILDKITE_ARTIFACT_PATHS" ]]; then
     echo "--- :kubernetes: Copying artifacts..."
-    (kubectl exec "$pod_name" -c run -- /bin/bash -c 'tar czf - $(shopt -s nullglob; IFS=";" list=($BUILDKITE_ARTIFACT_PATHS); echo -n "${list[@]}") || true' | tar xzf - -C $(pwd) || true) &> /dev/null
+    copy_artifacts $pod_name "run" $BUILDKITE_ARTIFACT_PATHS
+  fi
+
+  if [[ -n "$SECONDARY_ARTIFACT_PATHS" ]]; then
+    echo "--- :kubernetes: Copying secondary artifacts..."
+    copy_artifacts $pod_name $SECONDARY_CONTAINER_NAME $SECONDARY_ARTIFACT_PATHS
   fi
 
   (kubectl patch pod --patch '{"spec":{"activeDeadlineSeconds":1}}' "$pod_name" &> /dev/null || true)

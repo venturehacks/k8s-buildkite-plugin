@@ -27,8 +27,8 @@ main() {
 }
 
 copy_artifacts() {
-  local pod_name = $1
-  local container_name = $2
+  local pod_name=$1
+  local container_name=$2
 
   (kubectl exec "$pod_name" -c $container_name -- /bin/bash -c 'tar czf - $(shopt -s nullglob; IFS=";" list=($BUILDKITE_ARTIFACT_PATHS); echo -n "${list[@]}") || true' | tar xzf - -C $(pwd) || true) &> /dev/null
 }

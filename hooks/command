@@ -42,7 +42,7 @@ cleanup() {
     copy_artifacts $pod_name "run"
   fi
 
-  SECONDARY_CONTAINER_NAME=${$SECONDARY_CONTAINER_NAME:-""}
+  SECONDARY_CONTAINER_NAME=${SECONDARY_CONTAINER_NAME:-}
   if [[ -n "$SECONDARY_CONTAINER_NAME" ]]; then
     echo "--- :kubernetes: Copying secondary artifacts..."
     copy_artifacts $pod_name $SECONDARY_CONTAINER_NAME

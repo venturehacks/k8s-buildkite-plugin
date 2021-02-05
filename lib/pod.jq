@@ -26,6 +26,7 @@ def meld(a; b):
   kind: "Pod",
   metadata: {
     name: (env.BUILDKITE_PIPELINE_SLUG + "-" + env.BUILDKITE_JOB_ID),
+    namespace: ($config.namespace? // "default"),
     labels: ({
       buildkite: "true",
       buildkite_commit: env.BUILDKITE_COMMIT,
